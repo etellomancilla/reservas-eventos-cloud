@@ -2,21 +2,7 @@
 
 Backend Spring Boot con generación de PDF, almacenamiento temporal en **EFS**, subida automática a **S3** y despliegue en **EC2 con GitHub Actions**.
 
-> **Empieza aquí: [Guía de instalación AWS desde cero](GUIA_EVALUACION.md).**
->
-> El código está implementado. Debes crear los recursos en tu cuenta y configurar GitHub siguiendo la guía.
-
-## Documentación
-
-| Orden | Documento | Contenido |
-|---|---|---|
-| 1 | **[AWS desde cero](GUIA_EVALUACION.md)** | Crear red, S3, roles, EC2, IP elástica y EFS; desplegar |
-| 2 | **[Pruebas Postman](docs/POSTMAN.md)** | Importar colección y demostrar cada función |
-| 3 | **[Video y entrega](docs/VIDEO_Y_ENTREGA.md)** | Evidencias de la pauta y documentación |
-| Consulta | [Arquitectura](docs/ARQUITECTURA.md) | Datos, estados y decisiones |
-| Consulta | [Validación](docs/VALIDACION.md) | Pruebas ejecutadas y verificaciones pendientes en AWS |
-
-**Para leer con formato:** GitHub renderiza estos archivos automáticamente. En VS Code abre la paleta de comandos y selecciona **Markdown: Open Preview** para ver títulos, tablas y bloques de código.
+Este repositorio contiene los microservicios, las pruebas y la configuración de despliegue. La guía de preparación y las evidencias de la evaluación se entregan por separado.
 
 ## Funcionalidades implementadas
 
@@ -32,7 +18,7 @@ Backend Spring Boot con generación de PDF, almacenamiento temporal en **EFS**, 
 - [x] Verificación de integridad con SHA-256.
 - [x] Dockerfiles, workflow, scripts EC2 y colección Postman.
 
-`ms-administracion-archivos` conserva el ejemplo original. Los servicios implementados son **ms-reservas** y **ms-tickets**.
+Los servicios implementados son **ms-reservas** y **ms-tickets**.
 
 ## Arquitectura
 
@@ -107,7 +93,7 @@ Ambos deben responder `{"status":"UP"}`. Los datos locales se conservan en `.loc
 
 ### 4. Probar las API
 
-Importa la colección y el entorno **Local** según [POSTMAN.md](docs/POSTMAN.md). Con los servicios encendidos también puedes ejecutar:
+En Postman importa [la colección](postman/Reservas-Tickets.postman_collection.json) y [el entorno Local](postman/Local.postman_environment.json). Selecciona el entorno y ejecuta las solicitudes en orden. Para EC2 importa [el entorno AWS](postman/AWS.postman_environment.json) y reemplaza la IP elástica en ambas URL. Con los servicios locales encendidos también puedes ejecutar:
 
 ```bash
 python3 scripts/smoke.py
@@ -146,15 +132,12 @@ Filtros: `eventoId`, `usuarioId`, `desde`, `hasta`, `estadoArchivo`, `page`, `si
 
 ```text
 ├── README.md
-├── GUIA_EVALUACION.md             # Instalación AWS desde cero
 ├── ms-reservas/                   # Eventos, reservas y estadísticas
 ├── ms-tickets/                    # PDF, EFS, S3 e historial
-├── ms-administracion-archivos/     # Ejemplo original
 ├── .github/workflows/ci-cd.yml     # Pruebas, imágenes y despliegue
 ├── deploy/                       # Preparación EC2, despliegue e IAM
 ├── postman/                      # Colección y entornos Local/AWS
-├── scripts/                      # Arranque local y prueba REST
-└── docs/                         # Pruebas, video y diseño
+└── scripts/                      # Arranque local y prueba REST
 ```
 
 ## Alcance

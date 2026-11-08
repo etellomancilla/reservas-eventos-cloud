@@ -9,3 +9,10 @@
 .aws/
 .DS_Store
 *.log
+
+# Material local de preparación y entrega
+/GUIA_EVALUACION.md
+/docs/
+/documentacion.zip
+/ms-administracion-archivos/
+/scripts/package-docs.py
