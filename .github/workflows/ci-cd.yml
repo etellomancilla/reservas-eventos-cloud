@@ -1,0 +1,110 @@
+name: Tickets CI-CD
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tickets-production
+  cancel-in-progress: false
+
+jobs:
+  build:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        service: [ms-reservas, ms-tickets]
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/login-action@v4
+        with:
+          username: ${{ vars.DOCKERHUB_USERNAME }}
+          password: ${{ secrets.DOCKERHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@v4
+      - name: Probar, construir y publicar
+        uses: docker/build-push-action@v7
+        with:
+          context: ./${{ matrix.service }}
+          platforms: linux/amd64
+          push: true
+          tags: ${{ vars.DOCKERHUB_USERNAME }}/${{ matrix.service }}:${{ github.sha }}
+
+  deploy:
+    if: vars.AWS_DEPLOY_ROLE_ARN != '' && vars.EC2_INSTANCE_ID != ''
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write
+    env:
+      AWS_REGION: ${{ vars.AWS_REGION }}
+      EC2_INSTANCE_ID: ${{ vars.EC2_INSTANCE_ID }}
+      DOCKER_USER: ${{ vars.DOCKERHUB_USERNAME }}
+    steps:
+      - uses: actions/checkout@v7
+      - name: Mostrar solo el subject OIDC para verificar la confianza IAM
+        run: |
+          python3 - <<'PY'
+          import os, json, base64, urllib.request
+          url = os.environ['ACTIONS_ID_TOKEN_REQUEST_URL'] + '&audience=sts.amazonaws.com'
+          req = urllib.request.Request(url, headers={
+              'Authorization': 'Bearer ' + os.environ['ACTIONS_ID_TOKEN_REQUEST_TOKEN']})
+          with urllib.request.urlopen(req) as response:
+              token = json.load(response)['value']
+          payload = token.split('.')[1]
+          claims = json.loads(base64.urlsafe_b64decode(payload + '=' * (-len(payload) % 4)))
+          print('OIDC sub:', claims['sub'])
+          PY
+      - uses: aws-actions/configure-aws-credentials@v6.3.0
+        with:
+          role-to-assume: ${{ vars.AWS_DEPLOY_ROLE_ARN }}
+          aws-region: ${{ vars.AWS_REGION }}
+      - name: Enviar despliegue a EC2 y comprobar resultado
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import os, json, base64, shlex
+          from pathlib import Path
+          script = base64.b64encode(Path('deploy/deploy.sh').read_bytes()).decode()
+          command = ('bash /opt/reservas/deploy.sh ' + shlex.quote(os.environ['DOCKER_USER'])
+                     + ' ' + shlex.quote(os.environ['GITHUB_SHA']))
+          params = {'commands': ['set -eu',
+              'install -d -m 700 /opt/reservas',
+              "printf '%s' '" + script + "' | base64 -d > /opt/reservas/deploy.sh",
+              command], 'executionTimeout': ['900']}
+          Path('/tmp/ssm-parameters.json').write_text(json.dumps(params))
+          PY
+          command_id=$(aws ssm send-command \
+            --instance-ids "$EC2_INSTANCE_ID" \
+            --document-name AWS-RunShellScript \
+            --parameters file:///tmp/ssm-parameters.json \
+            --query Command.CommandId --output text)
+          for attempt in $(seq 1 110); do
+            if ! status=$(aws ssm get-command-invocation \
+              --command-id "$command_id" --instance-id "$EC2_INSTANCE_ID" \
+              --query Status --output text 2>/tmp/ssm-error); then
+              if grep -q InvocationDoesNotExist /tmp/ssm-error; then
+                sleep 10
+                continue
+              fi
+              cat /tmp/ssm-error
+              exit 1
+            fi
+            case "$status" in
+              Success|Failed|Cancelled|TimedOut)
+                aws ssm get-command-invocation --command-id "$command_id" \
+                  --instance-id "$EC2_INSTANCE_ID" \
+                  --query '{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}'
+                test "$status" = Success
+                exit $?
+                ;;
+            esac
+            sleep 10
+          done
+          echo 'El despliegue no terminó dentro del plazo.'
+          exit 1

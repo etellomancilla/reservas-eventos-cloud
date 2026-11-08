@@ -1,0 +1,18 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Effect": "Allow",
+      "Action": "ssm:SendCommand",
+      "Resource": [
+        "arn:aws:ssm:REEMPLAZAR_REGION::document/AWS-RunShellScript",
+        "arn:aws:ec2:REEMPLAZAR_REGION:REEMPLAZAR_CUENTA:instance/REEMPLAZAR_INSTANCIA"
+      ]
+    },
+    {
+      "Effect": "Allow",
+      "Action": "ssm:GetCommandInvocation",
+      "Resource": "*"
+    }
+  ]
+}
